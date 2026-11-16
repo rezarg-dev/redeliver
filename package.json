@@ -1,0 +1,17 @@
+{
+  "name": "redeliver",
+  "version": "0.1.0",
+  "description": "Self-hosted webhook relay: verify, queue, retry and replay webhooks",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "author": "Reza Ghaderi",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env src/server.js",
+    "dev": "node --env-file-if-exists=.env --watch src/server.js",
+    "test": "node --test \"test/**/*.test.js\""
+  }
+}
