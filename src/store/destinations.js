@@ -7,10 +7,10 @@ export function destinationsStore(db) {
   );
   const selectById = db.prepare('SELECT * FROM destinations WHERE id = ?');
   const selectBySource = db.prepare(
-    'SELECT * FROM destinations WHERE source_id = ? ORDER BY created_at, id',
+    'SELECT * FROM destinations WHERE source_id = ? ORDER BY rowid',
   );
   const selectEnabledBySource = db.prepare(
-    'SELECT * FROM destinations WHERE source_id = ? AND enabled = 1 ORDER BY created_at, id',
+    'SELECT * FROM destinations WHERE source_id = ? AND enabled = 1 ORDER BY rowid',
   );
   const updateById = db.prepare(
     'UPDATE destinations SET url = @url, secret = @secret, enabled = @enabled WHERE id = @id',

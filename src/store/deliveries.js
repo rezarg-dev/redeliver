@@ -7,7 +7,7 @@ export function deliveriesStore(db) {
   );
   const selectById = db.prepare('SELECT * FROM deliveries WHERE id = ?');
   const selectByEvent = db.prepare(
-    'SELECT * FROM deliveries WHERE event_id = ? ORDER BY created_at, id',
+    'SELECT * FROM deliveries WHERE event_id = ? ORDER BY rowid',
   );
 
   return {
