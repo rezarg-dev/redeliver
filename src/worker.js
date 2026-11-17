@@ -1,0 +1,137 @@
+import pkg from '../package.json' with { type: 'json' };
+import { retryDelay } from './backoff.js';
+import { sign } from './signature.js';
+
+const silentLogger = { debug() {}, info() {}, warn() {}, error() {} };
+
+/**
+ * Background loop that sends pending deliveries.
+ *
+ * `fetch`, `now` and `random` can be replaced, which is how the tests run
+ * the worker without a network or real waiting.
+ */
+export function createWorker({
+  store,
+  config,
+  logger = silentLogger,
+  fetch = globalThis.fetch,
+  now = Date.now,
+  random = Math.random,
+}) {
+  let running = false;
+  let timer = null;
+  let inFlight = Promise.resolve(0);
+
+  function buildHeaders(job) {
+    const headers = {
+      ...JSON.parse(job.headers),
+      'user-agent': `redeliver/${pkg.version}`,
+      'x-redeliver-event': job.event_id,
+      'x-redeliver-delivery': job.id,
+      'x-redeliver-attempt': String(job.attempts),
+    };
+    if (job.content_type) headers['content-type'] = job.content_type;
+    if (job.secret) headers['x-redeliver-signature'] = `sha256=${sign(job.secret, job.body)}`;
+    return headers;
+  }
+
+  /** Sends one request. Never throws: failures come back as { error }. */
+  async function send(job) {
+    try {
+      const response = await fetch(job.url, {
+        method: 'POST',
+        headers: buildHeaders(job),
+        body: job.body,
+        // A redirect usually means the destination URL is wrong or outdated.
+        // Following it silently would hide that, so 3xx counts as a failure.
+        redirect: 'manual',
+        signal: AbortSignal.timeout(config.deliveryTimeoutMs),
+      });
+      // We only care about the status. Discard the body so the connection
+      // can be reused.
+      await response.body?.cancel();
+
+      return {
+        statusCode: response.status,
+        error: response.status >= 200 && response.status < 300 ? null : `HTTP ${response.status}`,
+      };
+    } catch (err) {
+      const error =
+        err.name === 'TimeoutError'
+          ? `timed out after ${config.deliveryTimeoutMs} ms`
+          : (err.cause?.code ?? err.message);
+      return { statusCode: null, error };
+    }
+  }
+
+  async function attempt(job) {
+    const { statusCode, error } = await send(job);
+    const finishedAt = now();
+
+    if (error === null) {
+      store.deliveries.markDelivered(job.id, { statusCode, now: finishedAt });
+      logger.info({ delivery: job.id, attempt: job.attempts, statusCode }, 'delivered');
+      return;
+    }
+
+    if (job.attempts >= config.maxAttempts) {
+      store.deliveries.markDead(job.id, { statusCode, error, now: finishedAt });
+      logger.warn({ delivery: job.id, attempts: job.attempts, error }, 'giving up on delivery');
+      return;
+    }
+
+    const delay = retryDelay(job.attempts, {
+      baseMs: config.backoffBaseMs,
+      maxMs: config.backoffMaxMs,
+      random,
+    });
+    store.deliveries.markForRetry(job.id, {
+      statusCode,
+      error,
+      nextAttemptAt: finishedAt + delay,
+      now: finishedAt,
+    });
+    logger.info({ delivery: job.id, attempt: job.attempts, error, retryInMs: delay }, 'delivery failed');
+  }
+
+  /** Runs one batch and resolves with the number of deliveries it handled. */
+  async function tick() {
+    const jobs = store.deliveries.claimDue(now(), config.workerConcurrency);
+    await Promise.all(jobs.map(attempt));
+    return jobs.length;
+  }
+
+  async function loop() {
+    if (!running) return;
+
+    let handled = 0;
+    try {
+      inFlight = tick();
+      handled = await inFlight;
+    } catch (err) {
+      logger.error(err, 'worker tick failed');
+    }
+
+    if (!running) return;
+    // A full batch suggests there is more waiting, so go again right away.
+    const delay = handled === config.workerConcurrency ? 0 : config.workerPollMs;
+    timer = setTimeout(loop, delay);
+  }
+
+  return {
+    tick,
+
+    start() {
+      if (running) return;
+      running = true;
+      timer = setTimeout(loop, 0);
+    },
+
+    /** Stops polling and waits for requests that are already on their way. */
+    async stop() {
+      running = false;
+      clearTimeout(timer);
+      await inFlight.catch(() => {});
+    },
+  };
+}
