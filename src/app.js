@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 
 import { requireAdmin } from './auth.js';
 import { errorHandler, notFoundHandler } from './errors.js';
+import { destinationsRoutes } from './routes/destinations.js';
 import { healthRoutes } from './routes/health.js';
 import { sourcesRoutes } from './routes/sources.js';
 
@@ -24,6 +25,7 @@ export function buildApp({ config, store, logger = true }) {
     async (api) => {
       api.addHook('onRequest', requireAdmin(config.adminToken));
       api.register(sourcesRoutes, { store });
+      api.register(destinationsRoutes, { store });
     },
     { prefix: '/api' },
   );

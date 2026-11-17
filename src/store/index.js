@@ -1,3 +1,4 @@
+import { destinationsStore } from './destinations.js';
 import { sourcesStore } from './sources.js';
 
 export function createStore(db) {
@@ -5,6 +6,7 @@ export function createStore(db) {
 
   return {
     sources: sourcesStore(db),
+    destinations: destinationsStore(db),
 
     isHealthy() {
       return ping.get() === 1;
