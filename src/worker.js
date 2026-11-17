@@ -65,8 +65,22 @@ export function createWorker({
   }
 
   async function attempt(job) {
+    const startedAt = now();
     const { statusCode, error } = await send(job);
     const finishedAt = now();
+
+    // The delivery can disappear while the request is in the air (its
+    // source or destination was deleted). Nothing left to update then.
+    if (!store.deliveries.get(job.id)) return;
+
+    store.deliveries.recordAttempt({
+      deliveryId: job.id,
+      attempt: job.attempts,
+      statusCode,
+      error,
+      durationMs: finishedAt - startedAt,
+      at: startedAt,
+    });
 
     if (error === null) {
       store.deliveries.markDelivered(job.id, { statusCode, now: finishedAt });

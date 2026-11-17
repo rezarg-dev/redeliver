@@ -12,7 +12,7 @@ const START = Date.parse('2026-01-01T00:00:00Z');
 /**
  * Worker wired to a fake fetch and a clock the test moves by hand.
  * `responses` is a queue: each call to fetch takes the next entry, which is
- * either a status code, a Response, or an Error to throw.
+ * a status code, a Response, an Error to throw, or a function to call.
  */
 function setup({ config = {}, responses = [], secret = null } = {}) {
   const db = openDatabase(':memory:');
@@ -23,6 +23,7 @@ function setup({ config = {}, responses = [], secret = null } = {}) {
   const fetch = async (url, init) => {
     requests.push({ url, ...init });
     const next = responses.length > 0 ? responses.shift() : 200;
+    if (typeof next === 'function') return next();
     if (next instanceof Error) throw next;
     if (next instanceof Response) return next;
     return new Response(null, { status: next });
@@ -156,6 +157,42 @@ test('network errors and timeouts count as failures', async () => {
   await worker.tick();
   state = store.deliveries.get(delivery.id);
   assert.match(state.last_error, /^timed out after \d+ ms$/);
+});
+
+test('every attempt is recorded', async () => {
+  const { store, worker, clock, enqueue } = setup({ responses: [500, 200] });
+  const delivery = enqueue();
+
+  await worker.tick();
+  clock.now += 5000;
+  await worker.tick();
+
+  const attempts = store.deliveries.listAttempts(delivery.id);
+  assert.deepEqual(
+    attempts.map(({ attempt, status_code, error }) => ({ attempt, status_code, error })),
+    [
+      { attempt: 1, status_code: 500, error: 'HTTP 500' },
+      { attempt: 2, status_code: 200, error: null },
+    ],
+  );
+  assert.equal(attempts[1].attempted_at, START + 5000);
+});
+
+test('a delivery deleted while its request is in flight is ignored', async () => {
+  const ctx = setup({
+    responses: [
+      () => {
+        // Deleting the source cascades to its events and deliveries.
+        ctx.store.sources.remove(ctx.source.id);
+        return new Response(null, { status: 200 });
+      },
+    ],
+  });
+  const delivery = ctx.enqueue();
+
+  assert.equal(await ctx.worker.tick(), 1);
+  assert.equal(ctx.requests.length, 1);
+  assert.equal(ctx.store.deliveries.get(delivery.id), undefined);
 });
 
 test('redirects are treated as failures', async () => {

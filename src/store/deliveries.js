@@ -48,7 +48,30 @@ export function deliveriesStore(db) {
       WHERE id = @id`,
   );
 
+  const insertAttempt = db.prepare(
+    `INSERT INTO delivery_attempts (delivery_id, attempt, status_code, error, duration_ms, attempted_at)
+     VALUES (@delivery_id, @attempt, @status_code, @error, @duration_ms, @attempted_at)`,
+  );
+  const selectAttempts = db.prepare(
+    'SELECT * FROM delivery_attempts WHERE delivery_id = ? ORDER BY id',
+  );
+
   return {
+    recordAttempt({ deliveryId, attempt, statusCode, error, durationMs, at }) {
+      insertAttempt.run({
+        delivery_id: deliveryId,
+        attempt,
+        status_code: statusCode,
+        error,
+        duration_ms: durationMs,
+        attempted_at: at,
+      });
+    },
+
+    listAttempts(deliveryId) {
+      return selectAttempts.all(deliveryId);
+    },
+
     enqueue({ eventId, destinationId, at = Date.now() }) {
       const delivery = { id: newId('dlv'), event_id: eventId, destination_id: destinationId, at };
       insert.run(delivery);
