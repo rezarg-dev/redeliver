@@ -265,6 +265,25 @@ test('a failing destination does not affect others in the same batch', async () 
   assert.equal(store.deliveries.get(healthy.id).status, 'delivered');
 });
 
+test('deliveries left in_progress by a crash are picked up on start', async () => {
+  const { store, worker, requests, enqueue } = setup({ config: { workerPollMs: 5 } });
+  const delivery = enqueue();
+
+  // Simulate a crash: the delivery was claimed, then the process died.
+  store.deliveries.claimDue(START, 10);
+  assert.equal(store.deliveries.get(delivery.id).status, 'in_progress');
+  assert.equal(await worker.tick(), 0);
+
+  worker.start();
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  await worker.stop();
+
+  const state = store.deliveries.get(delivery.id);
+  assert.equal(state.status, 'delivered');
+  assert.equal(state.attempts, 2);
+  assert.equal(requests.length, 1);
+});
+
 test('start and stop run the loop against real timers', async () => {
   const { store, worker, enqueue } = setup({ config: { workerPollMs: 5 } });
   const delivery = enqueue();

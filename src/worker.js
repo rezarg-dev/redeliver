@@ -142,6 +142,12 @@ export function createWorker({
     start() {
       if (running) return;
       running = true;
+
+      const recovered = store.deliveries.recoverInterrupted(now());
+      if (recovered > 0) {
+        logger.warn({ recovered }, 'requeued deliveries interrupted by the last shutdown');
+      }
+
       timer = setTimeout(loop, 0);
     },
 

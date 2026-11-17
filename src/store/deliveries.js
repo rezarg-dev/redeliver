@@ -56,7 +56,22 @@ export function deliveriesStore(db) {
     'SELECT * FROM delivery_attempts WHERE delivery_id = ? ORDER BY id',
   );
 
+  const releaseInProgress = db.prepare(
+    `UPDATE deliveries
+        SET status = 'pending', next_attempt_at = @now, updated_at = @now
+      WHERE status = 'in_progress'`,
+  );
+
   return {
+    /**
+     * Puts deliveries that were mid-flight when the process stopped back in
+     * the queue. We cannot know whether those requests arrived, so they are
+     * sent again: at-least-once delivery. Returns how many were released.
+     */
+    recoverInterrupted(now) {
+      return releaseInProgress.run({ now }).changes;
+    },
+
     recordAttempt({ deliveryId, attempt, statusCode, error, durationMs, at }) {
       insertAttempt.run({
         delivery_id: deliveryId,
