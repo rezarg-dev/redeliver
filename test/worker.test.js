@@ -195,6 +195,30 @@ test('a delivery deleted while its request is in flight is ignored', async () =>
   assert.equal(ctx.store.deliveries.get(delivery.id), undefined);
 });
 
+test('Retry-After pushes the next attempt back, up to the backoff cap', async () => {
+  const tooManyRequests = (retryAfter) =>
+    new Response(null, { status: 429, headers: { 'retry-after': retryAfter } });
+  const { store, worker, clock, enqueue } = setup({
+    config: { maxAttempts: 5 },
+    responses: [tooManyRequests('30'), tooManyRequests('0'), tooManyRequests('86400')],
+  });
+  const delivery = enqueue();
+
+  // Longer than the 1 s backoff: the header wins.
+  await worker.tick();
+  assert.equal(store.deliveries.get(delivery.id).next_attempt_at, START + 30_000);
+
+  // Shorter than the 2 s backoff: the backoff wins.
+  clock.now = START + 30_000;
+  await worker.tick();
+  assert.equal(store.deliveries.get(delivery.id).next_attempt_at, clock.now + 2000);
+
+  // A day is beyond the 60 s cap.
+  clock.now += 2000;
+  await worker.tick();
+  assert.equal(store.deliveries.get(delivery.id).next_attempt_at, clock.now + 60_000);
+});
+
 test('redirects are treated as failures', async () => {
   const { store, worker, enqueue } = setup({ responses: [302] });
   const delivery = enqueue();

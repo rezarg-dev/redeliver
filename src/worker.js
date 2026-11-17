@@ -1,5 +1,5 @@
 import pkg from '../package.json' with { type: 'json' };
-import { retryDelay } from './backoff.js';
+import { parseRetryAfter, retryDelay } from './backoff.js';
 import { sign } from './signature.js';
 
 const silentLogger = { debug() {}, info() {}, warn() {}, error() {} };
@@ -54,19 +54,20 @@ export function createWorker({
       return {
         statusCode: response.status,
         error: response.status >= 200 && response.status < 300 ? null : `HTTP ${response.status}`,
+        retryAfterMs: parseRetryAfter(response.headers.get('retry-after'), now()),
       };
     } catch (err) {
       const error =
         err.name === 'TimeoutError'
           ? `timed out after ${config.deliveryTimeoutMs} ms`
           : (err.cause?.code ?? err.message);
-      return { statusCode: null, error };
+      return { statusCode: null, error, retryAfterMs: null };
     }
   }
 
   async function attempt(job) {
     const startedAt = now();
-    const { statusCode, error } = await send(job);
+    const { statusCode, error, retryAfterMs } = await send(job);
     const finishedAt = now();
 
     // The delivery can disappear while the request is in the air (its
@@ -94,11 +95,14 @@ export function createWorker({
       return;
     }
 
-    const delay = retryDelay(job.attempts, {
+    const backoff = retryDelay(job.attempts, {
       baseMs: config.backoffBaseMs,
       maxMs: config.backoffMaxMs,
       random,
     });
+    // If the destination tells us when to come back (typically with a 429
+    // or 503), wait at least that long, but never beyond our own cap.
+    const delay = Math.min(config.backoffMaxMs, Math.max(backoff, retryAfterMs ?? 0));
     store.deliveries.markForRetry(job.id, {
       statusCode,
       error,
