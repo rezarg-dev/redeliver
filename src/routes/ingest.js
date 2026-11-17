@@ -2,6 +2,17 @@ import { HttpError, notFound } from '../errors.js';
 import { forwardableHeaders } from '../headers.js';
 import { verifySignature } from '../signature.js';
 
+const MAX_KEY_LENGTH = 255;
+
+function readIdempotencyKey(headers) {
+  const key = headers['idempotency-key'];
+  if (key === undefined || key === '') return null;
+  if (typeof key !== 'string' || key.length > MAX_KEY_LENGTH) {
+    throw new HttpError(400, 'invalid_request', 'Idempotency-Key must be a single value of at most 255 characters');
+  }
+  return key;
+}
+
 export async function ingestRoutes(app, { store }) {
   // Signatures are computed over the exact bytes that were sent, so this
   // scope never parses bodies: every content type arrives as a Buffer.
@@ -17,12 +28,21 @@ export async function ingestRoutes(app, { store }) {
       throw new HttpError(401, 'invalid_signature', 'Signature is missing or does not match');
     }
 
+    const idempotencyKey = readIdempotencyKey(request.headers);
+
     // The event and its deliveries are written together. If the process
     // dies in between, we either have both or the sender gets an error
-    // and retries.
+    // and retries. The duplicate check sits inside the same transaction
+    // so two identical requests cannot both pass it.
     const result = store.transaction(() => {
+      if (idempotencyKey !== null) {
+        const existing = store.events.findByIdempotencyKey(source.id, idempotencyKey);
+        if (existing) return { id: existing.id, duplicate: true };
+      }
+
       const event = store.events.create({
         sourceId: source.id,
+        idempotencyKey,
         contentType: request.headers['content-type'] ?? null,
         headers: forwardableHeaders(request.headers),
         body,
@@ -34,6 +54,6 @@ export async function ingestRoutes(app, { store }) {
       return { id: event.id, deliveries: destinations.length };
     });
 
-    return reply.code(202).send(result);
+    return reply.code(result.duplicate ? 200 : 202).send(result);
   });
 }
