@@ -1,14 +1,17 @@
 import { HttpError, notFound } from '../errors.js';
 import { forwardableHeaders } from '../headers.js';
-import { verifySignature } from '../signature.js';
+import { idempotencyHeader, verifySignature } from '../signature.js';
 
 const MAX_KEY_LENGTH = 255;
 
-function readIdempotencyKey(headers) {
-  const key = headers['idempotency-key'];
+// An explicit Idempotency-Key wins. Otherwise fall back to the provider's
+// own delivery id, if the source's scheme defines one.
+function readIdempotencyKey(headers, scheme) {
+  const providerHeader = idempotencyHeader(scheme);
+  const key = headers['idempotency-key'] ?? (providerHeader ? headers[providerHeader] : undefined);
   if (key === undefined || key === '') return null;
   if (typeof key !== 'string' || key.length > MAX_KEY_LENGTH) {
-    throw new HttpError(400, 'invalid_request', 'Idempotency-Key must be a single value of at most 255 characters');
+    throw new HttpError(400, 'invalid_request', 'Idempotency key must be a single value of at most 255 characters');
   }
   return key;
 }
@@ -28,7 +31,7 @@ export async function ingestRoutes(app, { store }) {
       throw new HttpError(401, 'invalid_signature', 'Signature is missing or does not match');
     }
 
-    const idempotencyKey = readIdempotencyKey(request.headers);
+    const idempotencyKey = readIdempotencyKey(request.headers, source.scheme);
 
     // The event and its deliveries are written together. If the process
     // dies in between, we either have both or the sender gets an error

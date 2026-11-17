@@ -31,7 +31,23 @@ const schemes = {
       return matches(digest.toLowerCase(), sign(secret, body));
     },
   },
+
+  // GitHub: X-Hub-Signature-256 is always "sha256=<hex>", and every
+  // delivery has a GUID that GitHub reuses when it redelivers.
+  github: {
+    header: 'x-hub-signature-256',
+    idempotencyHeader: 'x-github-delivery',
+    verify(secret, given, body) {
+      if (!given.startsWith('sha256=')) return false;
+      return matches(given.slice(7), sign(secret, body));
+    },
+  },
 };
+
+/** Header a scheme uses to identify redeliveries, if it has one. */
+export function idempotencyHeader(schemeName) {
+  return schemes[schemeName]?.idempotencyHeader ?? null;
+}
 
 export const SCHEMES = Object.keys(schemes);
 
