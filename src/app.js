@@ -4,6 +4,7 @@ import { requireAdmin } from './auth.js';
 import { errorHandler, notFoundHandler } from './errors.js';
 import { destinationsRoutes } from './routes/destinations.js';
 import { healthRoutes } from './routes/health.js';
+import { ingestRoutes } from './routes/ingest.js';
 import { sourcesRoutes } from './routes/sources.js';
 
 export function buildApp({ config, store, logger = true }) {
@@ -19,6 +20,7 @@ export function buildApp({ config, store, logger = true }) {
   app.setNotFoundHandler(notFoundHandler);
 
   app.register(healthRoutes, { store });
+  app.register(ingestRoutes, { store });
 
   // Everything under /api is the admin API and sits behind the bearer token.
   app.register(
