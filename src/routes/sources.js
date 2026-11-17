@@ -1,6 +1,5 @@
 import { HttpError, notFound } from '../errors.js';
-
-const SCHEMES = ['hmac-sha256', 'none'];
+import { SCHEMES } from '../signature.js';
 
 const createSchema = {
   body: {
