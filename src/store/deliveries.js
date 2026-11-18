@@ -77,7 +77,16 @@ export function deliveriesStore(db) {
       WHERE id = @id AND status IN ('pending', 'dead')`,
   );
 
+  const countGrouped = db.prepare('SELECT status, COUNT(*) AS count FROM deliveries GROUP BY status');
+
   return {
+    /** Number of deliveries per status. States with no rows are reported as 0. */
+    countByStatus() {
+      const counts = { pending: 0, in_progress: 0, delivered: 0, dead: 0 };
+      for (const { status, count } of countGrouped.all()) counts[status] = count;
+      return counts;
+    },
+
     /** Newest first. Pass the `seq` of the last row as `cursor` for the next page. */
     list({ status = null, eventId = null, cursor = null, limit = 50 } = {}) {
       return selectPage.all({ status, event_id: eventId, cursor, limit });

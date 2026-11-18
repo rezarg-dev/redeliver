@@ -7,9 +7,10 @@ import { destinationsRoutes } from './routes/destinations.js';
 import { eventsRoutes } from './routes/events.js';
 import { healthRoutes } from './routes/health.js';
 import { ingestRoutes } from './routes/ingest.js';
+import { metricsRoutes } from './routes/metrics.js';
 import { sourcesRoutes } from './routes/sources.js';
 
-export function buildApp({ config, store, logger = true }) {
+export function buildApp({ config, store, metrics, logger = true }) {
   const app = Fastify({
     logger,
     bodyLimit: config.maxBodyBytes,
@@ -22,7 +23,8 @@ export function buildApp({ config, store, logger = true }) {
   app.setNotFoundHandler(notFoundHandler);
 
   app.register(healthRoutes, { store });
-  app.register(ingestRoutes, { store });
+  app.register(metricsRoutes, { metrics });
+  app.register(ingestRoutes, { store, metrics });
 
   // Everything under /api is the admin API and sits behind the bearer token.
   app.register(

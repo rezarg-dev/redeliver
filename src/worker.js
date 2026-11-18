@@ -13,6 +13,7 @@ const silentLogger = { debug() {}, info() {}, warn() {}, error() {} };
 export function createWorker({
   store,
   config,
+  metrics = null,
   logger = silentLogger,
   fetch = globalThis.fetch,
   now = Date.now,
@@ -85,12 +86,14 @@ export function createWorker({
 
     if (error === null) {
       store.deliveries.markDelivered(job.id, { statusCode, now: finishedAt });
+      metrics?.deliveryAttempts.inc({ outcome: 'delivered' });
       logger.info({ delivery: job.id, attempt: job.attempts, statusCode }, 'delivered');
       return;
     }
 
     if (job.attempts >= config.maxAttempts) {
       store.deliveries.markDead(job.id, { statusCode, error, now: finishedAt });
+      metrics?.deliveryAttempts.inc({ outcome: 'dead' });
       logger.warn({ delivery: job.id, attempts: job.attempts, error }, 'giving up on delivery');
       return;
     }
@@ -109,6 +112,7 @@ export function createWorker({
       nextAttemptAt: finishedAt + delay,
       now: finishedAt,
     });
+    metrics?.deliveryAttempts.inc({ outcome: 'retry' });
     logger.info({ delivery: job.id, attempt: job.attempts, error, retryInMs: delay }, 'delivery failed');
   }
 

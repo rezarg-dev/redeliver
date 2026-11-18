@@ -1,6 +1,7 @@
 import { buildApp } from '../../src/app.js';
 import { loadConfig } from '../../src/config.js';
 import { openDatabase } from '../../src/db.js';
+import { createMetrics } from '../../src/metrics.js';
 import { createStore } from '../../src/store/index.js';
 
 export const ADMIN_TOKEN = 'test-admin-token-0123456789';
@@ -15,6 +16,7 @@ export function createTestApp(overrides) {
   const config = testConfig(overrides);
   const db = openDatabase(config.databasePath);
   const store = createStore(db);
-  const app = buildApp({ config, store, logger: false });
-  return { app, store, db, config };
+  const metrics = createMetrics(store);
+  const app = buildApp({ config, store, metrics, logger: false });
+  return { app, store, db, config, metrics };
 }

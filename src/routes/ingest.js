@@ -16,7 +16,7 @@ function readIdempotencyKey(headers, scheme) {
   return key;
 }
 
-export async function ingestRoutes(app, { store }) {
+export async function ingestRoutes(app, { store, metrics }) {
   // Signatures are computed over the exact bytes that were sent, so this
   // scope never parses bodies: every content type arrives as a Buffer.
   app.removeAllContentTypeParsers();
@@ -24,10 +24,14 @@ export async function ingestRoutes(app, { store }) {
 
   app.post('/in/:sourceId', async (request, reply) => {
     const source = store.sources.get(request.params.sourceId);
-    if (!source) throw notFound('Source');
+    if (!source) {
+      metrics.eventsRejected.inc({ reason: 'unknown_source' });
+      throw notFound('Source');
+    }
 
     const body = request.body ?? Buffer.alloc(0);
     if (!verifySignature(source.scheme, source.secret, request.headers, body)) {
+      metrics.eventsRejected.inc({ reason: 'invalid_signature' });
       throw new HttpError(401, 'invalid_signature', 'Signature is missing or does not match');
     }
 
@@ -57,6 +61,11 @@ export async function ingestRoutes(app, { store }) {
       return { id: event.id, deliveries: destinations.length };
     });
 
-    return reply.code(result.duplicate ? 200 : 202).send(result);
+    if (result.duplicate) {
+      metrics.eventsDuplicate.inc({ source: source.name });
+      return reply.code(200).send(result);
+    }
+    metrics.eventsReceived.inc({ source: source.name });
+    return reply.code(202).send(result);
   });
 }
