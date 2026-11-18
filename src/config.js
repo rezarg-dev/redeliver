@@ -47,8 +47,8 @@ export function loadConfig(env = process.env) {
     workerPollMs: int('WORKER_POLL_MS', 1000),
     workerConcurrency: int('WORKER_CONCURRENCY', 4),
     deliveryTimeoutMs: int('DELIVERY_TIMEOUT_MS', 10_000),
-    maxAttempts: int('MAX_ATTEMPTS', 8),
-    backoffBaseMs: int('BACKOFF_BASE_MS', 2000),
+    maxAttempts: int('MAX_ATTEMPTS', 12),
+    backoffBaseMs: int('BACKOFF_BASE_MS', 5000),
     backoffMaxMs: int('BACKOFF_MAX_MS', 60 * 60 * 1000),
   };
 

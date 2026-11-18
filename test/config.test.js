@@ -8,7 +8,7 @@ const ADMIN_TOKEN = 'a-long-enough-admin-token';
 test('uses defaults when only the admin token is set', () => {
   const config = loadConfig({ ADMIN_TOKEN });
   assert.equal(config.port, 3000);
-  assert.equal(config.maxAttempts, 8);
+  assert.equal(config.maxAttempts, 12);
   assert.equal(config.databasePath, './data/redeliver.db');
 });
 
