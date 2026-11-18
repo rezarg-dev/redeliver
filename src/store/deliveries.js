@@ -1,3 +1,4 @@
+import { toBuffer, transaction } from '../db.js';
 import { newId } from '../ids.js';
 
 export function deliveriesStore(db) {
@@ -30,12 +31,6 @@ export function deliveriesStore(db) {
        JOIN destinations t ON t.id = d.destination_id
        JOIN events e ON e.id = d.event_id
       WHERE d.id = ?`,
-  );
-  const claimDue = db.transaction((now, limit) =>
-    selectDue.all(now, limit).map(({ id }) => {
-      markInProgress.run(now, id);
-      return selectJob.get(id);
-    }),
   );
 
   const finish = db.prepare(
@@ -144,7 +139,13 @@ export function deliveriesStore(db) {
      * and counts the attempt. Returns everything needed to send them.
      */
     claimDue(now, limit) {
-      return claimDue(now, limit);
+      return transaction(db, () =>
+        selectDue.all(now, limit).map(({ id }) => {
+          markInProgress.run(now, id);
+          const job = selectJob.get(id);
+          return { ...job, body: toBuffer(job.body) };
+        }),
+      );
     },
 
     markDelivered(id, { statusCode, now }) {

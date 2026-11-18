@@ -1,3 +1,4 @@
+import { toBuffer } from '../db.js';
 import { newId } from '../ids.js';
 
 export function eventsStore(db) {
@@ -44,7 +45,8 @@ export function eventsStore(db) {
     },
 
     get(id) {
-      return selectById.get(id);
+      const event = selectById.get(id);
+      return event && { ...event, body: toBuffer(event.body) };
     },
 
     findByIdempotencyKey(sourceId, key) {

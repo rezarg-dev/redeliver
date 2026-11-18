@@ -1,7 +1,7 @@
 # redeliver
 
 [![CI](https://github.com/rezarg-dev/redeliver/actions/workflows/ci.yml/badge.svg)](https://github.com/rezarg-dev/redeliver/actions/workflows/ci.yml)
-![Node](https://img.shields.io/badge/node-%3E%3D22.12-brightgreen)
+![Node](https://img.shields.io/badge/node-%3E%3D22.13-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 A small, self-hosted webhook relay. It takes a webhook at the door, checks
@@ -41,7 +41,8 @@ the background, with retries, and every attempt is on record.
 - **Crash safe**: event and deliveries are written in one transaction, and
   interrupted deliveries are requeued on startup
 - **Prometheus metrics** on `/metrics`, health check on `/healthz`
-- One process, one SQLite file, two runtime dependencies
+- One process, one SQLite file, one runtime dependency (Fastify). The database
+  is Node's built-in `node:sqlite`, so `npm install` never compiles anything.
 
 ## How it works
 
@@ -78,7 +79,8 @@ More detail on the design and its trade-offs is in
 
 ## Getting started
 
-Requires Node.js 22.12 or newer.
+Requires Node.js 22.13 or newer. There is nothing else to install: no database
+server, no native modules.
 
 ```bash
 git clone https://github.com/rezarg-dev/redeliver.git
@@ -329,6 +331,10 @@ Both endpoints are unauthenticated. If redeliver is reachable from the
 internet, expose only `/in/*` through your reverse proxy.
 
 ## Development
+
+`node:sqlite` is still marked experimental in Node 22 and 24. The npm scripts
+pass `--disable-warning=ExperimentalWarning` so that this notice does not
+clutter the output.
 
 ```bash
 npm test        # node:test, runs against in-memory SQLite, no network

@@ -1,3 +1,4 @@
+import { isUniqueViolation } from '../db.js';
 import { HttpError, notFound } from '../errors.js';
 import { SCHEMES } from '../signature.js';
 
@@ -30,7 +31,7 @@ export async function sourcesRoutes(app, { store }) {
     try {
       source = store.sources.create(request.body);
     } catch (err) {
-      if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      if (isUniqueViolation(err)) {
         throw new HttpError(409, 'conflict', `A source named "${request.body.name}" already exists`);
       }
       throw err;
