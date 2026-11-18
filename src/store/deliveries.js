@@ -62,7 +62,36 @@ export function deliveriesStore(db) {
       WHERE status = 'in_progress'`,
   );
 
+  const selectPage = db.prepare(
+    `SELECT rowid AS seq, *
+       FROM deliveries
+      WHERE (@status IS NULL OR status = @status)
+        AND (@event_id IS NULL OR event_id = @event_id)
+        AND (@cursor IS NULL OR rowid < @cursor)
+      ORDER BY rowid DESC
+      LIMIT @limit`,
+  );
+  const requeue = db.prepare(
+    `UPDATE deliveries
+        SET status = 'pending', attempts = 0, next_attempt_at = @now, updated_at = @now
+      WHERE id = @id AND status IN ('pending', 'dead')`,
+  );
+
   return {
+    /** Newest first. Pass the `seq` of the last row as `cursor` for the next page. */
+    list({ status = null, eventId = null, cursor = null, limit = 50 } = {}) {
+      return selectPage.all({ status, event_id: eventId, cursor, limit });
+    },
+
+    /**
+     * Makes a dead or waiting delivery due immediately, with a fresh attempt
+     * budget. Returns false if the delivery is in a state that cannot be
+     * retried (already delivered, or being sent right now).
+     */
+    retryNow(id, now) {
+      return requeue.run({ id, now }).changes > 0;
+    },
+
     /**
      * Puts deliveries that were mid-flight when the process stopped back in
      * the queue. We cannot know whether those requests arrived, so they are
