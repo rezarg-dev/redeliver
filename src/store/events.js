@@ -10,7 +10,25 @@ export function eventsStore(db) {
     'SELECT * FROM events WHERE source_id = ? AND idempotency_key = ?',
   );
 
+  // rowid grows with every insert, which makes it a gap-free pagination
+  // cursor even when several events share the same millisecond. Bodies are
+  // left out of the list; only their size is reported.
+  const selectPage = db.prepare(
+    `SELECT rowid AS seq, id, source_id, idempotency_key, content_type,
+            length(body) AS size, received_at
+       FROM events
+      WHERE (@source_id IS NULL OR source_id = @source_id)
+        AND (@cursor IS NULL OR rowid < @cursor)
+      ORDER BY rowid DESC
+      LIMIT @limit`,
+  );
+
   return {
+    /** Newest first. Pass the `seq` of the last row as `cursor` for the next page. */
+    list({ sourceId = null, cursor = null, limit = 50 } = {}) {
+      return selectPage.all({ source_id: sourceId, cursor, limit });
+    },
+
     create({ sourceId, idempotencyKey = null, contentType = null, headers, body }) {
       const event = {
         id: newId('evt'),

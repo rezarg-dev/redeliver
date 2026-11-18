@@ -6,7 +6,7 @@ export function sourcesStore(db) {
      VALUES (@id, @name, @scheme, @secret, @created_at)`,
   );
   const selectById = db.prepare('SELECT * FROM sources WHERE id = ?');
-  const selectAll = db.prepare('SELECT * FROM sources ORDER BY created_at DESC, id');
+  const selectAll = db.prepare('SELECT * FROM sources ORDER BY rowid DESC');
   const deleteById = db.prepare('DELETE FROM sources WHERE id = ?');
 
   return {

@@ -4,6 +4,7 @@ import { requireAdmin } from './auth.js';
 import { errorHandler, notFoundHandler } from './errors.js';
 import { deliveriesRoutes } from './routes/deliveries.js';
 import { destinationsRoutes } from './routes/destinations.js';
+import { eventsRoutes } from './routes/events.js';
 import { healthRoutes } from './routes/health.js';
 import { ingestRoutes } from './routes/ingest.js';
 import { sourcesRoutes } from './routes/sources.js';
@@ -29,6 +30,7 @@ export function buildApp({ config, store, logger = true }) {
       api.addHook('onRequest', requireAdmin(config.adminToken));
       api.register(sourcesRoutes, { store });
       api.register(destinationsRoutes, { store });
+      api.register(eventsRoutes, { store });
       api.register(deliveriesRoutes, { store });
     },
     { prefix: '/api' },
