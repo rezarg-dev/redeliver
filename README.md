@@ -4,6 +4,7 @@
 ![Node](https://img.shields.io/badge/node-%3E%3D22.13-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
+
 A small, self-hosted webhook relay. It takes a webhook at the door, checks
 who sent it, and makes sure it reaches every recipient, even if they are not
 home on the first try.
@@ -13,6 +14,21 @@ GitHub / Stripe / your shop  ──►  redeliver  ──►  service A
                                      │       ──►  service B
                                   SQLite     ──►  service C (down, retried later)
 ```
+---
+
+## Support the Project
+
+If redeliver has been useful to you, you can support its development:
+
+| Network | Address |
+| :---: | :---: |
+| **USDT (BEP20)** | `0x8F540B43cC82d765bfe33c7B3da042B11708eCD1` |
+| **USDT (TRC20)** | `TGHxjiBeBkdJ7v2Vc4gqE9FYp7Nj1sgDkJ` |
+| **Litecoin (LTC)** | `ltc1q28g9qzpjs22x2uvds5tqp60w250fvjf2te234l` |
+
+Every contribution, no matter the size, helps keep this project alive. ❤️
+
+---
 
 ## Why
 
